@@ -52,6 +52,7 @@ export interface ArchiveSliceActions {
     sourceProvider: string;
     sourceProjectPath: string;
     sourceProjectName: string;
+    planFilePaths?: string[];
     includeSubagents?: boolean;
   }) => Promise<ArchiveEntry>;
   deleteArchive: (id: string) => Promise<void>;

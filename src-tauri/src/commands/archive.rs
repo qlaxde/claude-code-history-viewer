@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -23,6 +24,8 @@ lazy_static! {
     static ref ARCHIVE_ID_SAFE_CHARS_REGEX: Regex =
         Regex::new(r"^[A-Za-z0-9_-]+$").unwrap();
 }
+
+static AUTO_ARCHIVE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 // ---------------------------------------------------------------------------
 // Data structures
@@ -124,6 +127,35 @@ pub struct ExportResult {
     pub content: String,
     pub format: String,
     pub session_id: String,
+}
+
+/// Result of an automatic archival pass.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoArchiveResult {
+    pub archived_count: usize,
+    pub archive_ids: Vec<String>,
+    pub archived_session_ids: Vec<String>,
+    pub archived_plan_slugs: Vec<String>,
+}
+
+impl AutoArchiveResult {
+    fn empty() -> Self {
+        Self {
+            archived_count: 0,
+            archive_ids: Vec::new(),
+            archived_session_ids: Vec::new(),
+            archived_plan_slugs: Vec::new(),
+        }
+    }
+}
+
+struct AutoArchiveInProgressGuard;
+
+impl Drop for AutoArchiveInProgressGuard {
+    fn drop(&mut self) {
+        AUTO_ARCHIVE_IN_PROGRESS.store(false, Ordering::Release);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -560,7 +592,101 @@ fn find_subagent_files(session_file_path: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Converts a JSONL file to a pretty-printed JSON array string.
+fn extract_session_slug(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let val = serde_json::from_str::<serde_json::Value>(&line).ok()?;
+        if val.get("type").and_then(serde_json::Value::as_str) == Some("user") {
+            if let Some(slug) = val.get("slug").and_then(serde_json::Value::as_str) {
+                return Some(slug.to_string());
+            }
+        }
+    }
+
+    None
+}
+
+fn collect_already_archived_session_paths() -> Result<std::collections::HashSet<String>, String> {
+    let mut archived = std::collections::HashSet::new();
+    let manifest = load_manifest()?;
+    let archives_dir = get_archives_dir()?;
+
+    for entry in manifest.archives {
+        let per_manifest_path = archives_dir.join(entry.id).join("manifest.json");
+        let Ok(content) = fs::read_to_string(&per_manifest_path) else {
+            continue;
+        };
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+            continue;
+        };
+        let Some(sessions) = json.get("sessions").and_then(serde_json::Value::as_array) else {
+            continue;
+        };
+
+        for session in sessions {
+            if let Some(path) = session
+                .get("originalFilePath")
+                .and_then(serde_json::Value::as_str)
+            {
+                archived.insert(path.to_string());
+            }
+        }
+    }
+
+    Ok(archived)
+}
+
+fn collect_claude_project_dirs() -> Result<Vec<PathBuf>, String> {
+    let home = dirs::home_dir().ok_or("Could not find home directory")?;
+    let mut claude_dirs = vec![home.join(".claude")];
+    let metadata_path = home.join(".claude-history-viewer").join("user-data.json");
+
+    if let Ok(content) = fs::read_to_string(metadata_path) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(custom_paths) = json
+                .get("settings")
+                .and_then(|settings| settings.get("customClaudePaths"))
+                .and_then(serde_json::Value::as_array)
+            {
+                for entry in custom_paths {
+                    if let Some(path) = entry.get("path").and_then(serde_json::Value::as_str) {
+                        let normalized = if let Some(stripped) = path.strip_prefix("~/") {
+                            home.join(stripped)
+                        } else {
+                            PathBuf::from(path)
+                        };
+                        if !claude_dirs.contains(&normalized) {
+                            claude_dirs.push(normalized);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut project_dirs = Vec::new();
+    for claude_dir in claude_dirs {
+        let projects_dir = claude_dir.join("projects");
+        let Ok(entries) = fs::read_dir(projects_dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                project_dirs.push(path);
+            }
+        }
+    }
+
+    Ok(project_dirs)
+}
+
 fn jsonl_to_json_array(path: &Path) -> Result<String, String> {
     let file = fs::File::open(path).map_err(|e| format!("Failed to read session file: {e}"))?;
     let reader = BufReader::new(file);
@@ -678,6 +804,7 @@ pub async fn list_archives() -> Result<ArchiveManifest, String> {
 /// * `source_project_name` - Display name of the originating project
 /// * `include_subagents` - Whether to also copy subagent JSONL files
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn create_archive(
     name: String,
     description: Option<String>,
@@ -685,6 +812,7 @@ pub async fn create_archive(
     source_provider: String,
     source_project_path: String,
     source_project_name: String,
+    plan_file_paths: Option<Vec<String>>,
     include_subagents: bool,
 ) -> Result<ArchiveEntry, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -708,6 +836,7 @@ pub async fn create_archive(
         let archive_dir = get_archives_dir()?.join(&archive_id);
         let sessions_dir = archive_dir.join("sessions");
         let subagents_dir = archive_dir.join("subagents");
+        let plans_dir = archive_dir.join("plans");
 
         fs::create_dir_all(&sessions_dir)
             .map_err(|e| format!("Failed to create sessions directory: {e}"))?;
@@ -717,6 +846,7 @@ pub async fn create_archive(
             let mut total_size: u64 = 0;
             let mut session_count: u32 = 0;
             let mut per_session_info: Vec<serde_json::Value> = Vec::new();
+            let mut per_plan_info: Vec<serde_json::Value> = Vec::new();
 
             for session_path_str in &session_file_paths {
                 let session_path = Path::new(session_path_str);
@@ -849,6 +979,35 @@ pub async fn create_archive(
                 }));
             }
 
+            if let Some(plan_paths) = plan_file_paths.as_ref() {
+                if !plan_paths.is_empty() {
+                    fs::create_dir_all(&plans_dir)
+                        .map_err(|e| format!("Failed to create plans directory: {e}"))?;
+                }
+
+                for plan_path_str in plan_paths {
+                    let plan_path = Path::new(plan_path_str);
+                    if !plan_path.exists() {
+                        continue;
+                    }
+                    let file_name = plan_path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .ok_or_else(|| format!("Invalid plan file name: {plan_path_str}"))?;
+                    let dest = plans_dir.join(file_name);
+                    fs::copy(plan_path, &dest)
+                        .map_err(|e| format!("Failed to copy plan file '{plan_path_str}': {e}"))?;
+                    let size_bytes = dest.metadata().map(|m| m.len()).unwrap_or(0);
+                    total_size += size_bytes;
+                    per_plan_info.push(serde_json::json!({
+                        "slug": dest.file_stem().and_then(|s| s.to_str()).unwrap_or_default(),
+                        "fileName": file_name,
+                        "originalFilePath": plan_path_str,
+                        "sizeBytes": size_bytes,
+                    }));
+                }
+            }
+
             // Write per-archive manifest
             let created_at = Utc::now().to_rfc3339();
             let archive_manifest_path = archive_dir.join("manifest.json");
@@ -863,6 +1022,7 @@ pub async fn create_archive(
                 "sourceProjectName": source_project_name,
                 "includeSubagents": include_subagents,
                 "sessions": per_session_info,
+                "plans": per_plan_info,
             });
             let manifest_content = serde_json::to_string_pretty(&archive_manifest)
                 .map_err(|e| format!("Failed to serialize per-archive manifest: {e}"))?;
@@ -1456,6 +1616,7 @@ pub async fn get_expiring_sessions(
                     has_tool_use: false,
                     has_errors: false,
                     summary,
+                    slug: None,
                     is_renamed: false,
                     provider: None,
                     storage_type: None,
@@ -1479,6 +1640,111 @@ pub async fn get_expiring_sessions(
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn auto_archive_expiring(threshold_days: i64) -> Result<AutoArchiveResult, String> {
+    if AUTO_ARCHIVE_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Ok(AutoArchiveResult::empty());
+    }
+    let _auto_archive_guard = AutoArchiveInProgressGuard;
+
+    let archived_paths =
+        tauri::async_runtime::spawn_blocking(collect_already_archived_session_paths)
+            .await
+            .map_err(|e| format!("Task join error: {e}"))??;
+    let project_dirs = tauri::async_runtime::spawn_blocking(collect_claude_project_dirs)
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+    let plans_dir = super::fs_utils::get_plans_dir().ok();
+
+    type ArchiveGroupKey = (String, String, String);
+    type ArchiveGroupValue = (Vec<String>, Vec<String>, Vec<String>);
+    let mut groups: std::collections::BTreeMap<ArchiveGroupKey, ArchiveGroupValue> =
+        std::collections::BTreeMap::new();
+
+    for project_dir in project_dirs {
+        let project_path = project_dir.to_string_lossy().to_string();
+        let expiring = get_expiring_sessions(project_path.clone(), threshold_days).await?;
+
+        for item in expiring {
+            if archived_paths.contains(&item.session.file_path) {
+                continue;
+            }
+
+            let month = chrono::DateTime::parse_from_rfc3339(&item.session.last_message_time)
+                .map(|dt| dt.format("%Y-%m").to_string())
+                .unwrap_or_else(|_| Utc::now().format("%Y-%m").to_string());
+            let key = (
+                project_path.clone(),
+                item.session.project_name.clone(),
+                month.clone(),
+            );
+            let entry = groups
+                .entry(key)
+                .or_insert_with(|| (Vec::new(), Vec::new(), Vec::new()));
+            entry.0.push(item.session.file_path.clone());
+            entry.1.push(item.session.actual_session_id.clone());
+
+            if let (Some(base_dir), Some(slug)) = (
+                plans_dir.as_ref(),
+                extract_session_slug(Path::new(&item.session.file_path)),
+            ) {
+                let plan_path = base_dir.join(format!("{slug}.md"));
+                if plan_path.exists() {
+                    let plan_path_str = plan_path.to_string_lossy().to_string();
+                    if !entry.2.contains(&plan_path_str) {
+                        entry.2.push(plan_path_str);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut archive_ids = Vec::new();
+    let mut archived_session_ids = Vec::new();
+    let mut archived_plan_slugs = Vec::new();
+
+    for ((project_path, project_name, month), (session_paths, session_ids, plan_paths)) in groups {
+        if session_paths.is_empty() {
+            continue;
+        }
+
+        let entry = create_archive(
+            format!("archive-{month}-{project_name}"),
+            Some("Auto-archived before expiry".to_string()),
+            session_paths,
+            "claude".to_string(),
+            project_path,
+            project_name,
+            if plan_paths.is_empty() {
+                None
+            } else {
+                Some(plan_paths.clone())
+            },
+            true,
+        )
+        .await?;
+
+        archive_ids.push(entry.id);
+        archived_session_ids.extend(session_ids);
+        archived_plan_slugs.extend(
+            plan_paths
+                .iter()
+                .filter_map(|path| Path::new(path).file_stem().and_then(|stem| stem.to_str()))
+                .map(str::to_string),
+        );
+    }
+
+    Ok(AutoArchiveResult {
+        archived_count: archived_session_ids.len(),
+        archive_ids,
+        archived_session_ids,
+        archived_plan_slugs,
+    })
 }
 
 /// Exports a session file to either Markdown or JSON format.
@@ -1621,6 +1887,7 @@ mod tests {
                 "claude".to_string(),
                 "/p".to_string(),
                 "p".to_string(),
+                None,
                 false,
             ))
             .unwrap();
@@ -1775,6 +2042,7 @@ mod tests {
             "claude".to_string(),
             "/home/user/project".to_string(),
             "my-project".to_string(),
+            None,
             false,
         )
         .await
@@ -1806,6 +2074,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -1833,6 +2102,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -1871,6 +2141,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -1895,6 +2166,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -1931,6 +2203,7 @@ mod tests {
             "claude".to_string(),
             "/project".to_string(),
             "test-project".to_string(),
+            None,
             false,
         )
         .await
@@ -2002,6 +2275,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             true,
         )
         .await
@@ -2044,6 +2318,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             true,
         )
         .await;
@@ -2071,6 +2346,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -2104,6 +2380,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -2184,6 +2461,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
@@ -2224,6 +2502,7 @@ mod tests {
             "claude".to_string(),
             "/p".to_string(),
             "p".to_string(),
+            None,
             false,
         )
         .await
