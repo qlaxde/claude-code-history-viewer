@@ -7,7 +7,7 @@
 
 import { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download } from "lucide-react";
+import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner, LoadingState } from "@/components/ui/loading";
@@ -78,7 +78,16 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     shouldHighlightTarget,
     clearTargetMessage,
     messageFilter,
+    userMetadata,
+    plans,
   } = useAppStore();
+
+  const resolvedPlanSlug = selectedSession
+    ? selectedSession.slug || userMetadata.sessions[selectedSession.session_id]?.planSlug
+    : undefined;
+  const resolvedPlanTitle = resolvedPlanSlug
+    ? plans.items.find((plan) => plan.slug === resolvedPlanSlug)?.title ?? resolvedPlanSlug
+    : undefined;
 
   // Apply role + content type filters
   const displayMessages = useMemo(() => {
@@ -597,6 +606,20 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
             title={t("common.back")}
           >
             <ChevronDown className="w-4 h-4 rotate-90" />
+          </button>
+        )}
+
+        {resolvedPlanSlug && (
+          <button
+            type="button"
+            onClick={() => {
+              useAppStore.getState().setAnalyticsCurrentView("plans");
+              void useAppStore.getState().loadPlans().then(() => useAppStore.getState().selectPlan(resolvedPlanSlug));
+            }}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-200"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span className="max-w-[220px] truncate">{resolvedPlanTitle}</span>
           </button>
         )}
 
