@@ -1,4 +1,4 @@
-import { FolderOpen, MessageSquare, Columns, BarChart3, SlidersHorizontal } from "lucide-react";
+import { FolderOpen, MessageSquare, Columns, BarChart3, SlidersHorizontal, BookOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -10,13 +10,20 @@ interface BottomTabBarProps {
   isViewingGlobalStats?: boolean;
 }
 
-const tabs = [
+const tabs: Array<{
+  id: string;
+  icon: typeof FolderOpen;
+  labelKey: string;
+  label?: string;
+  alwaysEnabled: boolean;
+}> = [
   { id: "projects", icon: FolderOpen, labelKey: "common.mobile.tab.projects", alwaysEnabled: true },
   { id: "messages", icon: MessageSquare, labelKey: "common.mobile.tab.messages", alwaysEnabled: true },
   { id: "board", icon: Columns, labelKey: "common.mobile.tab.board", alwaysEnabled: false },
   { id: "analytics", icon: BarChart3, labelKey: "common.mobile.tab.analytics", alwaysEnabled: false },
+  { id: "plans", icon: BookOpen, labelKey: "common.mobile.tab.analytics", label: "Plans", alwaysEnabled: true },
   { id: "settings", icon: SlidersHorizontal, labelKey: "common.mobile.tab.settings", alwaysEnabled: true },
-] as const;
+];
 
 export function BottomTabBar({ activeView, onOpenSidebar, onSwitchView, hasProject, isViewingGlobalStats }: BottomTabBarProps) {
   const { t } = useTranslation();
@@ -27,7 +34,7 @@ export function BottomTabBar({ activeView, onOpenSidebar, onSwitchView, hasProje
       aria-label="Navigation"
     >
       <div className="flex items-center justify-around h-full px-2">
-        {tabs.map(({ id, icon: Icon, labelKey, alwaysEnabled }) => {
+        {tabs.map(({ id, icon: Icon, labelKey, label, alwaysEnabled }) => {
           const isActive =
             id === "projects"
               ? false
@@ -58,11 +65,11 @@ export function BottomTabBar({ activeView, onOpenSidebar, onSwitchView, hasProje
                   : "text-muted-foreground",
                 isDisabled && "opacity-40 cursor-not-allowed"
               )}
-              aria-label={t(labelKey)}
+              aria-label={label ?? t(labelKey)}
               aria-current={isActive ? "page" : undefined}
             >
               <Icon className="w-5 h-5" />
-              <span className="text-3xs font-medium truncate max-w-full">{t(labelKey)}</span>
+              <span className="text-3xs font-medium truncate max-w-full">{label ?? t(labelKey)}</span>
               {isDisabled && (
                 <span className="text-3xs text-muted-foreground/60 truncate max-w-full">
                   ({t("common.mobile.selectProject")})

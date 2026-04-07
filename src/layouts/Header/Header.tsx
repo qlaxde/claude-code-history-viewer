@@ -10,6 +10,7 @@ import {
   Columns,
   Search,
   Archive,
+  BookOpen,
 } from "lucide-react";
 
 import { TooltipButton } from "@/shared/TooltipButton";
@@ -281,6 +282,19 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
                 analyticsActions.switchToMessages();
               } else {
                 analyticsActions.switchToArchive();
+              }
+            }}
+          />
+
+          <NavButton
+            icon={BookOpen}
+            label="Plans"
+            isActive={computed.isPlansView}
+            onClick={() => {
+              if (computed.isPlansView) {
+                analyticsActions.switchToMessages();
+              } else {
+                void analyticsActions.switchToPlans();
               }
             }}
           />

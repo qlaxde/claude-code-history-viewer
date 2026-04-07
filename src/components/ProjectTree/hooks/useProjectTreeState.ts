@@ -1,7 +1,6 @@
 // src/components/ProjectTree/hooks/useProjectTreeState.ts
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { ClaudeProject } from "../../../types";
-import type { GroupingMode } from "../../../types/metadata.types";
+import type { ClaudeProject, GroupingMode } from "../../../types";
 import type { ContextMenuState } from "../types";
 
 export function useProjectTreeState(groupingMode: GroupingMode) {
