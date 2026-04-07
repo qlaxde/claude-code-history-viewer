@@ -152,6 +152,7 @@ pub fn load_sessions(
                     Some(task)
                 },
                 is_renamed: false,
+                slug: None,
                 provider: Some("cline".to_string()),
                 storage_type: Some("json".to_string()),
             })

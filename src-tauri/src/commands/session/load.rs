@@ -42,6 +42,9 @@ struct CachedSessionMetadata {
     /// Rename name from /rename command
     #[serde(default)]
     rename_name: Option<String>,
+    /// Linked plan slug extracted from the transcript
+    #[serde(default)]
+    slug: Option<String>,
 }
 
 /// Session metadata cache file structure
@@ -53,7 +56,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 8;
+const CACHE_VERSION: u32 = 9;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -138,6 +141,8 @@ struct IncrementalParseState {
     first_assistant_text: Option<String>,
     /// Rename name from /rename command (already known)
     rename_name: Option<String>,
+    /// Linked plan slug already extracted from the transcript
+    slug: Option<String>,
 }
 
 /// Minimal struct for fast line classification (avoids full parsing)
@@ -166,6 +171,7 @@ struct SessionMetadataEntry {
     is_meta: Option<bool>,
     summary: Option<String>,
     subtype: Option<String>,
+    slug: Option<String>,
     content: Option<serde_json::Value>,
     #[serde(rename = "toolUse")]
     tool_use: Option<serde_json::Value>,
@@ -211,6 +217,8 @@ struct SessionExtractionResult {
     first_assistant_text: Option<String>,
     /// Rename name from /rename command (for caching)
     rename_name: Option<String>,
+    /// Linked plan slug extracted from the transcript
+    slug: Option<String>,
 }
 
 /// Fast session metadata extraction with two-phase parsing:
@@ -263,6 +271,7 @@ fn extract_session_metadata_internal(
         mut last_user_content,
         mut first_assistant_text,
         mut rename_name,
+        mut slug,
     ) = if let Some(ref state) = incremental_state {
         (
             state.start_offset,
@@ -278,10 +287,12 @@ fn extract_session_metadata_internal(
             state.last_user_content.clone(),
             state.first_assistant_text.clone(),
             state.rename_name.clone(),
+            state.slug.clone(),
         )
     } else {
         (
             0u64, 0usize, 0usize, None, None, None, None, false, false, None, None, None, None,
+            None,
         )
     };
 
@@ -366,6 +377,10 @@ fn extract_session_metadata_internal(
                     if let Some(ref sid) = entry.session_id {
                         actual_session_id = Some(sid.clone());
                     }
+                }
+
+                if slug.is_none() {
+                    slug.clone_from(&entry.slug);
                 }
 
                 // Check for tool use
@@ -545,6 +560,7 @@ fn extract_session_metadata_internal(
             has_tool_use,
             has_errors,
             summary: final_summary,
+            slug: slug.clone(),
             is_renamed: rename_name.is_some(),
             provider: None,
             storage_type: None,
@@ -557,6 +573,7 @@ fn extract_session_metadata_internal(
         last_user_content,
         first_assistant_text,
         rename_name,
+        slug,
     })
 }
 
@@ -869,6 +886,7 @@ pub async fn load_project_sessions(
                             last_user_content: cached.last_user_content.clone(),
                             first_assistant_text: cached.first_assistant_text.clone(),
                             rename_name: cached.rename_name.clone(),
+                            slug: cached.slug.clone().or_else(|| session.slug.clone()),
                         },
                     ));
                     continue;
@@ -936,6 +954,7 @@ pub async fn load_project_sessions(
                     last_user_content,
                     first_assistant_text,
                     cached_rename_name,
+                    cached_slug,
                 ) = match &result_opt {
                     Some(result) => (
                         Some(result.session.clone()),
@@ -947,8 +966,9 @@ pub async fn load_project_sessions(
                         result.last_user_content.clone(),
                         result.first_assistant_text.clone(),
                         result.rename_name.clone(),
+                        result.slug.clone(),
                     ),
-                    None => (None, 0, 0, false, false, None, None, None, None),
+                    None => (None, 0, 0, false, false, None, None, None, None, None),
                 };
 
                 cache.entries.insert(
@@ -965,6 +985,7 @@ pub async fn load_project_sessions(
                         last_user_content,
                         first_assistant_text,
                         rename_name: cached_rename_name,
+                        slug: cached_slug,
                     },
                 );
                 cache_updated = true;

@@ -342,6 +342,18 @@ pub struct SessionIdParam {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SlugParam {
+    pub slug: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PidParam {
+    pub pid: i32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateSessionMetadataParams {
     pub session_id: String,
     pub update: crate::models::SessionMetadata,
@@ -369,6 +381,12 @@ handler_no_params!(
 );
 handler_no_params!(get_system_info, commands::feedback::get_system_info);
 handler_no_params!(detect_providers, commands::multi_provider::detect_providers);
+handler_no_params!(scan_plans, commands::plans::scan_plans);
+handler_no_params!(
+    get_running_sessions,
+    commands::workflow::get_running_sessions
+);
+handler_no_params!(install_hooks, commands::workflow::install_hooks);
 handler_no_params!(load_presets, commands::settings::load_presets);
 handler_no_params!(load_mcp_presets, commands::mcp_presets::load_mcp_presets);
 handler_no_params!(
@@ -475,6 +493,14 @@ handler_json!(
 
 handler_json!(get_preset, IdParam, |p: IdParam| async move {
     commands::settings::get_preset(p.id).await
+});
+
+handler_json!(load_plan, SlugParam, |p: SlugParam| async move {
+    commands::plans::load_plan(p.slug).await
+});
+
+handler_json!(kill_session, PidParam, |p: PidParam| async move {
+    commands::workflow::kill_session(p.pid).await
 });
 
 handler_json!(delete_preset, IdParam, |p: IdParam| async move {
@@ -1023,6 +1049,8 @@ pub struct CreateArchiveParams {
     pub source_provider: String,
     pub source_project_path: String,
     pub source_project_name: String,
+    #[serde(default)]
+    pub plan_file_paths: Option<Vec<String>>,
     #[serde(default = "default_true")]
     pub include_subagents: bool,
 }
@@ -1042,6 +1070,7 @@ handler_json!(
             p.source_provider,
             p.source_project_path,
             p.source_project_name,
+            p.plan_file_paths,
             p.include_subagents,
         )
         .await
@@ -1125,5 +1154,13 @@ handler_json!(
     ExportSessionParams,
     |p: ExportSessionParams| async move {
         commands::archive::export_session(p.session_file_path, p.format).await
+    }
+);
+
+handler_json!(
+    auto_archive_expiring,
+    ExpiringSessionsParams,
+    |p: ExpiringSessionsParams| async move {
+        commands::archive::auto_archive_expiring(p.threshold_days.unwrap_or(5)).await
     }
 );

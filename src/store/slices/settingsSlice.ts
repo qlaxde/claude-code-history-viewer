@@ -8,7 +8,7 @@ import { storageAdapter } from "@/services/storage";
 import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
-import type { SessionSortOrder } from "../../types/metadata.types";
+import type { SessionSortOrder } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
 

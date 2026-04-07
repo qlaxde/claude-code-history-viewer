@@ -24,6 +24,7 @@ import type {
   ProviderInfo,
   StatsMode,
   MetricMode,
+  SessionSortOrder,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
 import type { AnalyticsState, AnalyticsViewType } from "../../types/analytics";
@@ -132,7 +133,7 @@ export interface AppStoreState {
   fontScale: number;
   highContrast: boolean;
   updateSettings: UpdateSettings;
-  sessionSortOrder: import("../../types/metadata.types").SessionSortOrder;
+  sessionSortOrder: SessionSortOrder;
 
   // Global stats state
   globalSummary: GlobalStatsSummary | null;
@@ -188,6 +189,12 @@ export interface AppStoreState {
 
   // Archive state
   archive: import('../slices/archiveSlice').ArchiveSliceState['archive'];
+
+  // Plans state
+  plans: import('../slices/plansSlice').PlansSliceState['plans'];
+
+  // Runtime workflow state
+  runtime: import('../slices/runtimeSlice').RuntimeSliceState['runtime'];
 }
 
 export interface AppStoreActions {
@@ -260,7 +267,7 @@ export interface AppStoreActions {
   ) => Promise<void>;
   skipVersion: (version: string) => Promise<void>;
   postponeUpdate: () => Promise<void>;
-  setSessionSortOrder: (order: import("../../types/metadata.types").SessionSortOrder) => Promise<void>;
+  setSessionSortOrder: (order: SessionSortOrder) => Promise<void>;
 
   // Global stats actions
   loadGlobalStats: () => Promise<void>;
@@ -349,6 +356,7 @@ export interface AppStoreActions {
     sourceProvider: string;
     sourceProjectPath: string;
     sourceProjectName: string;
+    planFilePaths?: string[];
     includeSubagents?: boolean;
   }) => Promise<import('../../types').ArchiveEntry>;
   deleteArchive: (id: string) => Promise<void>;
@@ -360,6 +368,18 @@ export interface AppStoreActions {
   setArchiveActiveTab: (tab: import('../../types').ArchiveViewTab) => void;
   clearArchiveError: () => void;
   resetArchive: () => void;
+
+  // Plans actions
+  loadPlans: () => Promise<void>;
+  selectPlan: (slug: string | null) => Promise<void>;
+  clearPlansError: () => void;
+
+  // Runtime workflow actions
+  loadRunningSessions: () => Promise<void>;
+  killSessionProcess: (pid: number) => Promise<void>;
+  autoArchiveExpiring: (thresholdDays: number) => Promise<import('../../types').AutoArchiveResult>;
+  installHooks: () => Promise<import('../../types').HookInstallResult>;
+  clearRuntimeError: () => void;
 }
 
 export type FullAppStore = AppStoreState & AppStoreActions;

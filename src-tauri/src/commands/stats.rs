@@ -2709,6 +2709,7 @@ mod tests {
             microcompact_metadata: None,
             content: None,
             is_meta: None,
+            slug: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -2768,6 +2769,7 @@ mod tests {
             microcompact_metadata: None,
             content: None,
             is_meta: None,
+            slug: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -2819,6 +2821,7 @@ mod tests {
             microcompact_metadata: None,
             content: None,
             is_meta: None,
+            slug: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -2867,6 +2870,7 @@ mod tests {
             microcompact_metadata: None,
             content: None,
             is_meta: None,
+            slug: None,
         };
 
         let result = ClaudeMessage::try_from(raw);
@@ -2915,6 +2919,7 @@ mod tests {
             microcompact_metadata: None,
             content: None,
             is_meta: None,
+            slug: None,
         };
 
         // Should succeed with timestamp even without session_id

@@ -158,6 +158,22 @@ pub struct SessionMetadata {
     /// User notes about the session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+
+    /// Workflow status for the session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+
+    /// Priority from 1 (highest) to 5 (lowest)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<u8>,
+
+    /// Manually linked plan slug
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_slug: Option<String>,
+
+    /// Last time the session was explicitly closed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_closed_at: Option<String>,
 }
 
 impl SessionMetadata {
@@ -167,6 +183,10 @@ impl SessionMetadata {
             && self.starred.is_none()
             && self.tags.is_empty()
             && self.notes.is_none()
+            && self.status.is_none()
+            && self.priority.is_none()
+            && self.plan_slug.is_none()
+            && self.last_closed_at.is_none()
     }
 }
 
@@ -221,13 +241,21 @@ pub struct UserSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub worktree_grouping_user_set: Option<bool>,
 
-    /// Project tree grouping mode: "none", "worktree", or "directory"
+    /// Project tree grouping mode: "none", "worktree", "directory", or "recent"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grouping_mode: Option<String>,
 
     /// Additional Claude configuration directories to scan
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_claude_paths: Vec<CustomClaudePath>,
+
+    /// Automatically archive sessions that are close to expiry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_archive_expiring_sessions: Option<bool>,
+
+    /// Archive threshold in days before expiry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_archive_threshold_days: Option<i64>,
 }
 
 #[cfg(test)]

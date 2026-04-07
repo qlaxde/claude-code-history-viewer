@@ -235,6 +235,7 @@ mod session_snapshots {
             is_renamed: false,
             provider: None,
             storage_type: None,
+            slug: None,
         };
 
         assert_json_snapshot!("claude_session", session);

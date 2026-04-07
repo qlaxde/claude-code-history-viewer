@@ -66,6 +66,10 @@ pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
 }
 
+fn get_user_data_lock_path() -> Result<PathBuf, String> {
+    Ok(get_user_data_path()?.with_extension("json.lock"))
+}
+
 /// Ensure the metadata folder exists
 fn ensure_metadata_folder() -> Result<PathBuf, String> {
     let folder = get_metadata_folder()?;
@@ -87,24 +91,25 @@ pub async fn get_metadata_folder_path() -> Result<String, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+fn load_metadata_from_disk() -> Result<UserMetadata, String> {
+    let path = get_user_data_path()?;
+    if !path.exists() {
+        return Ok(UserMetadata::new());
+    }
+
+    let content =
+        fs::read_to_string(&path).map_err(|e| format!("Failed to read metadata file: {e}"))?;
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {e}"))
+}
+
 /// Load user metadata from disk
 /// Creates default metadata if file doesn't exist
 #[tauri::command]
 pub async fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserMetadata, String> {
-    let path = get_user_data_path()?;
-
     // Perform blocking file I/O off the async runtime
-    let metadata = tauri::async_runtime::spawn_blocking(move || {
-        if path.exists() {
-            let content = fs::read_to_string(&path)
-                .map_err(|e| format!("Failed to read metadata file: {e}"))?;
-            serde_json::from_str(&content).map_err(|e| format!("Failed to parse metadata: {e}"))
-        } else {
-            Ok(UserMetadata::new())
-        }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
+    let metadata = tauri::async_runtime::spawn_blocking(load_metadata_from_disk)
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
 
     // Cache the metadata (lock is quick, no need to spawn_blocking)
     let mut cached = state
@@ -116,8 +121,7 @@ pub async fn load_user_metadata(state: State<'_, MetadataState>) -> Result<UserM
     Ok(metadata)
 }
 
-/// Internal helper to save metadata to disk (blocking)
-pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
+fn save_metadata_to_disk_unlocked(metadata: &UserMetadata) -> Result<(), String> {
     ensure_metadata_folder()?;
     let path = get_user_data_path()?;
 
@@ -137,6 +141,12 @@ pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), Strin
     super::fs_utils::atomic_rename(&temp_path, &path)?;
 
     Ok(())
+}
+
+/// Internal helper to save metadata to disk (blocking)
+pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), String> {
+    let lock_path = get_user_data_lock_path()?;
+    super::fs_utils::with_lock_file(&lock_path, || save_metadata_to_disk_unlocked(metadata))
 }
 
 /// Save user metadata to disk with atomic write
@@ -169,32 +179,31 @@ pub async fn update_session_metadata(
     update: SessionMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Perform quick in-memory mutation while holding lock, then release
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .lock()
-            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    let updated_metadata = tauri::async_runtime::spawn_blocking(move || {
+        let lock_path = get_user_data_lock_path()?;
+        super::fs_utils::with_lock_file(&lock_path, || {
+            let mut metadata = load_metadata_from_disk()?;
 
-        let metadata = cached.get_or_insert_with(UserMetadata::new);
+            if update.is_empty() {
+                metadata.sessions.remove(&session_id);
+            } else {
+                metadata.sessions.insert(session_id, update);
+            }
 
-        // Update or insert session metadata
-        if update.is_empty() {
-            metadata.sessions.remove(&session_id);
-        } else {
-            metadata.sessions.insert(session_id, update);
-        }
+            save_metadata_to_disk_unlocked(&metadata)?;
+            Ok(metadata)
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
-        metadata.clone()
-    }; // Lock released here
+    let mut cached = state
+        .metadata
+        .lock()
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    *cached = Some(updated_metadata.clone());
 
-    // Perform blocking file I/O off the async runtime
-    let metadata_clone = metadata_to_save.clone();
-    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-    Ok(metadata_to_save)
+    Ok(updated_metadata)
 }
 
 /// Update metadata for a specific project
@@ -204,35 +213,33 @@ pub async fn update_project_metadata(
     update: ProjectMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Validate that project path is absolute
     validate_project_metadata_key(&project_path)?;
 
-    // Perform quick in-memory mutation while holding lock, then release
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .lock()
-            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    let updated_metadata = tauri::async_runtime::spawn_blocking(move || {
+        let lock_path = get_user_data_lock_path()?;
+        super::fs_utils::with_lock_file(&lock_path, || {
+            let mut metadata = load_metadata_from_disk()?;
 
-        let metadata = cached.get_or_insert_with(UserMetadata::new);
+            if update.is_empty() {
+                metadata.projects.remove(&project_path);
+            } else {
+                metadata.projects.insert(project_path, update);
+            }
 
-        // Update or insert project metadata
-        if update.is_empty() {
-            metadata.projects.remove(&project_path);
-        } else {
-            metadata.projects.insert(project_path, update);
-        }
+            save_metadata_to_disk_unlocked(&metadata)?;
+            Ok(metadata)
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
-        metadata.clone()
-    }; // Lock released here
+    let mut cached = state
+        .metadata
+        .lock()
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    *cached = Some(updated_metadata.clone());
 
-    // Perform blocking file I/O off the async runtime
-    let metadata_clone = metadata_to_save.clone();
-    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-    Ok(metadata_to_save)
+    Ok(updated_metadata)
 }
 
 /// Update global user settings
@@ -241,26 +248,25 @@ pub async fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    // Perform quick in-memory mutation while holding lock, then release
-    let metadata_to_save = {
-        let mut cached = state
-            .metadata
-            .lock()
-            .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    let updated_metadata = tauri::async_runtime::spawn_blocking(move || {
+        let lock_path = get_user_data_lock_path()?;
+        super::fs_utils::with_lock_file(&lock_path, || {
+            let mut metadata = load_metadata_from_disk()?;
+            metadata.settings = settings;
+            save_metadata_to_disk_unlocked(&metadata)?;
+            Ok(metadata)
+        })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
-        let metadata = cached.get_or_insert_with(UserMetadata::new);
-        metadata.settings = settings;
+    let mut cached = state
+        .metadata
+        .lock()
+        .map_err(|e| format!("Failed to lock metadata: {e}"))?;
+    *cached = Some(updated_metadata.clone());
 
-        metadata.clone()
-    }; // Lock released here
-
-    // Perform blocking file I/O off the async runtime
-    let metadata_clone = metadata_to_save.clone();
-    tauri::async_runtime::spawn_blocking(move || save_metadata_to_disk(&metadata_clone))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-    Ok(metadata_to_save)
+    Ok(updated_metadata)
 }
 
 /// Check if a project should be hidden based on metadata

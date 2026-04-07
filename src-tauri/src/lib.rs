@@ -12,9 +12,9 @@ pub mod test_utils;
 
 use crate::commands::{
     archive::{
-        create_archive, delete_archive, export_session, get_archive_base_path,
-        get_archive_disk_usage, get_archive_sessions, get_expiring_sessions, list_archives,
-        load_archive_session_messages, rename_archive,
+        auto_archive_expiring, create_archive, delete_archive, export_session,
+        get_archive_base_path, get_archive_disk_usage, get_archive_sessions, get_expiring_sessions,
+        list_archives, load_archive_session_messages, rename_archive,
     },
     claude_settings::{
         get_all_mcp_servers, get_all_settings, get_claude_json_config, get_mcp_servers,
@@ -32,6 +32,7 @@ use crate::commands::{
         detect_providers, load_provider_messages, load_provider_sessions, scan_all_projects,
         search_all_providers,
     },
+    plans::{load_plan, scan_plans},
     project::{
         get_claude_folder_path, get_git_log, scan_projects, validate_claude_folder,
         validate_custom_claude_dir,
@@ -50,6 +51,7 @@ use crate::commands::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
     },
     watcher::{start_file_watcher, stop_file_watcher},
+    workflow::{get_running_sessions, install_hooks, kill_session},
     wsl::{detect_wsl_distros, is_wsl_available},
 };
 
@@ -194,6 +196,14 @@ fn run_tauri() {
             get_archive_disk_usage,
             get_expiring_sessions,
             export_session,
+            auto_archive_expiring,
+            // Plan commands
+            scan_plans,
+            load_plan,
+            // Workflow commands
+            get_running_sessions,
+            kill_session,
+            install_hooks,
             // WSL commands
             detect_wsl_distros,
             is_wsl_available

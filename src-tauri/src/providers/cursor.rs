@@ -176,6 +176,7 @@ pub fn load_sessions(
                 has_errors: false,
                 summary: Some(name.to_string()),
                 is_renamed: false,
+                slug: None,
                 provider: Some("cursor".to_string()),
                 storage_type: Some("sqlite".to_string()),
             })
