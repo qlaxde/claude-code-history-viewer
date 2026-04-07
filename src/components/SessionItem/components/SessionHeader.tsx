@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageCircle, Archive } from "lucide-react";
+import { MessageCircle, Archive, Radio } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,7 @@ import type { SessionHeaderProps } from "../types";
 export const SessionHeader: React.FC<SessionHeaderProps> = ({
   isArchivedCodexSession,
   isSelected,
+  runningSession,
 }) => {
   const { t } = useTranslation();
 
@@ -43,17 +44,36 @@ export const SessionHeader: React.FC<SessionHeaderProps> = ({
   }
 
   return (
-    <div
-      className={cn(
-        "w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-300",
-        isSelected
-          ? "bg-accent text-accent-foreground"
-          : "bg-muted/50 text-muted-foreground"
+    <div className="flex items-center gap-1.5 flex-shrink-0">
+      <div
+        className={cn(
+          "w-5 h-5 rounded-md flex items-center justify-center transition-all duration-300",
+          isSelected
+            ? "bg-accent text-accent-foreground"
+            : "bg-muted/50 text-muted-foreground"
+        )}
+      >
+        <span title={t("session.item.session")}>
+          <MessageCircle className="w-3 h-3" />
+        </span>
+      </div>
+      {runningSession && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-4 h-4 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <Radio className="w-2.5 h-2.5" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            <div className="space-y-0.5 font-mono">
+              <div>PID {runningSession.pid}</div>
+              <div>CPU {runningSession.cpu_percent.toFixed(1)}%</div>
+              <div>RSS {(runningSession.memory_rss_kb / 1024).toFixed(0)} MB</div>
+              <div>Uptime {Math.floor(runningSession.uptime_seconds / 60)}m</div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
       )}
-    >
-      <span title={t("session.item.session")}>
-        <MessageCircle className="w-3 h-3" />
-      </span>
     </div>
   );
 };

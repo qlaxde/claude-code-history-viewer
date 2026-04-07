@@ -1,4 +1,4 @@
-import type { ClaudeSession } from "@/types";
+import type { ClaudeSession, RunningSessionInfo, SessionPriority, SessionStatus } from "@/types";
 
 export interface SessionItemProps {
   session: ClaudeSession;
@@ -6,11 +6,14 @@ export interface SessionItemProps {
   onSelect: () => void;
   onHover?: () => void;
   formatTimeAgo: (date: string) => string;
+  showProject?: boolean;
+  projectLabel?: string;
 }
 
 export interface SessionHeaderProps {
   isArchivedCodexSession: boolean;
   isSelected: boolean;
+  runningSession?: RunningSessionInfo;
 }
 
 export interface SessionNameEditorProps {
@@ -44,4 +47,9 @@ export interface SessionMetaProps {
   session: ClaudeSession;
   isSelected: boolean;
   formatTimeAgo: (date: string) => string;
+  status?: SessionStatus;
+  priority?: SessionPriority;
+  showProject?: boolean;
+  projectLabel?: string;
+  planTitle?: string;
 }
