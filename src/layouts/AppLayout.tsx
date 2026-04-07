@@ -10,6 +10,7 @@ import {
   Coins,
   Settings,
   Archive,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner } from "@/components/ui/loading";
@@ -25,9 +26,11 @@ import { SimpleUpdateManager } from "@/components/SimpleUpdateManager";
 import { SettingsManager } from "@/components/SettingsManager";
 import { SessionBoard } from "@/components/SessionBoard/SessionBoard";
 import { ArchiveManager } from "@/components/ArchiveManager";
+import { PlansView } from "@/components/PlansView";
 import { BottomTabBar } from "@/components/mobile/BottomTabBar";
 import { MobileNavigatorSheet } from "@/components/mobile/MobileNavigatorSheet";
 import { Header } from "@/layouts/Header/Header";
+import { useAppStore } from "@/store/useAppStore";
 import { ModalContainer } from "@/layouts/Header/SettingDropdown/ModalContainer";
 import { DesktopOnly } from "@/contexts/platform";
 import {
@@ -135,6 +138,8 @@ export interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = (props) => {
   const { t } = useTranslation();
+  const runningSessions = useAppStore((state) => state.runtime.runningSessions);
+  const lastAutoArchiveResult = useAppStore((state) => state.runtime.lastAutoArchiveResult);
   const {
     projects,
     sessions,
@@ -201,6 +206,14 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
     globalOverviewDescription,
     liveStatusMessage,
   } = props;
+
+  const totalRunningMemoryKb = runningSessions.reduce(
+    (total, session) => total + session.memory_rss_kb,
+    0
+  );
+  const runningMemoryLabel = totalRunningMemoryKb >= 1024 * 1024
+    ? `${(totalRunningMemoryKb / 1024 / 1024).toFixed(1)} GB memory`
+    : `${(totalRunningMemoryKb / 1024).toFixed(0)} MB memory`;
 
   // Error State
   if (error && error.type !== AppErrorType.CLAUDE_FOLDER_NOT_FOUND) {
@@ -363,6 +376,7 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
               computed.isSettingsView ||
               computed.isBoardView ||
               computed.isArchiveView ||
+              computed.isPlansView ||
               (isViewingGlobalStats && !computed.isSettingsView)) && (
               <div className="px-4 py-3 md:px-6 md:py-4 border-b border-border/50 bg-card/50">
                 <div className="flex items-center gap-3">
@@ -371,6 +385,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                       <Database className="w-5 h-5 text-accent" />
                     ) : computed.isArchiveView ? (
                       <Archive className="w-5 h-5 text-accent" />
+                    ) : computed.isPlansView ? (
+                      <BookOpen className="w-5 h-5 text-accent" />
                     ) : computed.isSettingsView ? (
                       <Settings className="w-5 h-5 text-accent" />
                     ) : computed.isAnalyticsView ? (
@@ -389,6 +405,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                         ? t("analytics.globalOverview")
                         : computed.isArchiveView
                           ? t("archive.title")
+                          : computed.isPlansView
+                            ? "Plans"
                           : computed.isSettingsView
                             ? t("settingsManager.title")
                             : computed.isAnalyticsView
@@ -404,6 +422,8 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                         ? globalOverviewDescription
                         : computed.isArchiveView
                           ? t("archive.description")
+                          : computed.isPlansView
+                            ? "Browse saved Claude plans and linked sessions"
                           : computed.isSettingsView
                             ? t("settingsManager.description")
                             : computed.isRecentEditsView
@@ -478,6 +498,10 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                   <ArchiveManager
                     className="flex-1 min-h-0"
                   />
+                </div>
+              ) : computed.isPlansView ? (
+                <div className="h-full flex flex-col p-3 md:p-6">
+                  <PlansView />
                 </div>
               ) : computed.isSettingsView ? (
                 <div className="h-full flex flex-col p-3 md:p-6">
@@ -628,6 +652,20 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                 </span>
               </>
             )}
+            {runningSessions.length > 0 && (
+              <>
+                <span className="text-border">&bull;</span>
+                <span>
+                  {runningSessions.length} sessions running · {runningMemoryLabel}
+                </span>
+              </>
+            )}
+            {(lastAutoArchiveResult?.archivedCount ?? 0) > 0 && (
+              <>
+                <span className="text-border">&bull;</span>
+                <span>{lastAutoArchiveResult?.archivedCount} auto-archived</span>
+              </>
+            )}
           </div>
 
           {(isLoading ||
@@ -691,6 +729,9 @@ export const AppLayout: React.FC<AppLayoutProps> = (props) => {
                   break;
                 case "archive":
                   analyticsActions.switchToArchive();
+                  break;
+                case "plans":
+                  void analyticsActions.switchToPlans();
                   break;
               }
             }}
