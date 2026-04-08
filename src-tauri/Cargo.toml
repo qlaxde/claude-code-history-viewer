@@ -19,22 +19,22 @@ default = []
 webui-server = ["dep:axum", "dep:tower-http", "dep:tower", "dep:tokio", "dep:tokio-stream", "dep:rust-embed", "dep:mime_guess"]
 
 [build-dependencies]
-tauri-build = { version = "2.5.3", features = [] }
+tauri-build = { version = "=2.5.3", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.9.5", features = [] }
-tauri-plugin-log = "2.7.1"
-tauri-plugin-fs = "2.4.4"
-tauri-plugin-dialog = "2.6.0"
-tauri-plugin-store = "2.4.1"
-tauri-plugin-updater = "2.9.0"
-tauri-plugin-process = "2.3.1"
-tauri-plugin-http = "2.5.4"
-tauri-plugin-opener = "2.5.2"
-tauri-plugin-os = "2.3.2"
+tauri = { version = "=2.9.5", features = [] }
+tauri-plugin-log = "=2.7.1"
+tauri-plugin-fs = "=2.4.5"
+tauri-plugin-dialog = "=2.6.0"
+tauri-plugin-store = "=2.4.1"
+tauri-plugin-updater = "=2.9.0"
+tauri-plugin-process = "=2.3.1"
+tauri-plugin-http = "=2.5.4"
+tauri-plugin-opener = "=2.5.2"
+tauri-plugin-os = "=2.3.2"
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "5.0"
 uuid = { version = "1.0", features = ["v4", "serde"] }
