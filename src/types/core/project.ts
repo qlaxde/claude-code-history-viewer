@@ -14,6 +14,9 @@ export const METADATA_SCHEMA_VERSION = 1;
 // ============================================================================
 
 /** Metadata for individual sessions */
+export type SessionStatus = "active" | "paused" | "completed" | "abandoned";
+export type SessionPriority = 1 | 2 | 3 | 4 | 5;
+
 export interface SessionMetadata {
   /** Custom name for the session (overrides auto-generated summary) */
   customName?: string;
@@ -25,6 +28,14 @@ export interface SessionMetadata {
   notes?: string;
   /** Whether the session has been renamed via Claude Code native rename (synced with CLI) */
   hasClaudeCodeName?: boolean;
+  /** Workflow status for the session */
+  status?: SessionStatus;
+  /** Priority from 1 (highest) to 5 (lowest) */
+  priority?: SessionPriority;
+  /** Manually linked plan slug */
+  planSlug?: string;
+  /** Last time this session was explicitly closed */
+  lastClosedAt?: string;
 }
 
 // ============================================================================
@@ -42,7 +53,10 @@ export interface ProjectMetadata {
 }
 
 /** Grouping mode for project tree display */
-export type GroupingMode = "none" | "worktree" | "directory";
+export type GroupingMode = "none" | "worktree" | "directory" | "recent";
+
+/** Session sort order */
+export type SessionSortOrder = "newest" | "oldest";
 
 // ============================================================================
 // User Settings
@@ -80,12 +94,16 @@ export interface UserSettings {
   worktreeGrouping?: boolean;
   /** Whether user has explicitly set worktree grouping (prevents auto-override) */
   worktreeGroupingUserSet?: boolean;
-  /** Project tree grouping mode: none, worktree, or directory */
+  /** Project tree grouping mode: none, worktree, directory, or recent */
   groupingMode?: GroupingMode;
   /** Additional Claude configuration directories to scan */
   customClaudePaths?: CustomClaudePath[];
   /** WSL integration settings (Windows only) */
   wsl?: WslSettings;
+  /** Automatically archive sessions that are approaching expiry */
+  autoArchiveExpiringSessions?: boolean;
+  /** Archive threshold in days before expiry */
+  autoArchiveThresholdDays?: number;
 }
 
 // ============================================================================
@@ -123,7 +141,11 @@ export const isSessionMetadataEmpty = (metadata: SessionMetadata): boolean => {
     !metadata.starred &&
     (!metadata.tags || metadata.tags.length === 0) &&
     !metadata.notes &&
-    !metadata.hasClaudeCodeName
+    !metadata.hasClaudeCodeName &&
+    !metadata.status &&
+    !metadata.priority &&
+    !metadata.planSlug &&
+    !metadata.lastClosedAt
   );
 };
 

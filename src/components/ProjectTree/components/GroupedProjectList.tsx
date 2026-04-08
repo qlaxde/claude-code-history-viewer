@@ -28,6 +28,7 @@ interface GroupedProjectListProps {
   onSessionSelect: (session: ClaudeSession) => void;
   onSessionHover?: (session: ClaudeSession) => void;
   formatTimeAgo: (date: string) => string;
+  statusFilter?: "all" | import("@/types").SessionStatus;
 }
 
 export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
@@ -49,6 +50,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
   onSessionSelect,
   onSessionHover,
   formatTimeAgo,
+  statusFilter = "all",
 }) => {
   const { t } = useTranslation();
 
@@ -99,6 +101,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
               onSessionHover={onSessionHover}
               formatTimeAgo={formatTimeAgo}
               variant={variant}
+              statusFilter={statusFilter}
             />
           </div>
         )}

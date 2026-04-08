@@ -6,7 +6,7 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
-import type { ClaudeProject, ClaudeSession, AppError } from "../../types";
+import type { ClaudeProject, ClaudeSession, AppError, GroupingMode } from "../../types";
 import { AppErrorType } from "../../types";
 import type { StateCreator } from "zustand";
 import type { FullAppStore } from "./types";
@@ -16,7 +16,6 @@ import {
   type WorktreeGroupingResult,
   type DirectoryGroupingResult,
 } from "../../utils/worktreeUtils";
-import type { GroupingMode } from "../../types/metadata.types";
 import { DEFAULT_PROVIDER_ID } from "../../utils/providers";
 import { INITIAL_PAGINATION } from "./messageSlice";
 import { nextRequestId, getRequestId } from "../../utils/requestId";

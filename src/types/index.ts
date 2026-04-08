@@ -105,6 +105,7 @@ export type {
   ClaudeProject,
   ClaudeSession,
   SearchFilters,
+  RunningSessionInfo,
 } from "./core/session";
 
 // Project & Metadata Types
@@ -113,8 +114,11 @@ export type {
   WslDistro,
   WslSettings,
   SessionMetadata,
+  SessionStatus,
+  SessionPriority,
   ProjectMetadata,
   GroupingMode,
+  SessionSortOrder,
   UserSettings,
   UserMetadata,
 } from "./core/project";
@@ -267,3 +271,13 @@ export type {
   ExportResult,
   ArchiveViewTab,
 } from "./archive";
+
+// Workflow Types
+export type {
+  Plan,
+  PlanContent,
+  AutoArchiveResult,
+  HookInstallResult,
+  ResolvedPlanLink,
+  LinkedPlanSession,
+} from "./workflow";

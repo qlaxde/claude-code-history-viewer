@@ -54,6 +54,15 @@ export function useAnalyticsNavigation() {
     }
   }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
 
+  const switchToPlans = useCallback(async () => {
+    setAnalyticsCurrentView("plans");
+    clearAnalyticsErrors();
+    const store = useAppStore.getState();
+    if (!store.plans.isLoadingPlans) {
+      await store.loadPlans();
+    }
+  }, [setAnalyticsCurrentView, clearAnalyticsErrors]);
+
   const switchToTokenStats = useCallback(async () => {
     const project = useAppStore.getState().selectedProject;
     if (!project) {
@@ -429,6 +438,11 @@ export function useAnalyticsNavigation() {
           await useAppStore.getState().loadArchives();
         }
         break;
+      case "plans":
+        if (!useAppStore.getState().plans.isLoadingPlans) {
+          await useAppStore.getState().loadPlans();
+        }
+        break;
       default:
         console.warn("Unknown analytics view:", analytics.currentView);
     }
@@ -459,6 +473,7 @@ export function useAnalyticsNavigation() {
     switchToSettings,
     switchToBoard,
     switchToArchive,
+    switchToPlans,
     setStatsMode,
     setMetricMode,
     refreshAnalytics,

@@ -73,6 +73,8 @@ export interface ClaudeSession {
   has_tool_use: boolean;
   has_errors: boolean;
   summary?: string;
+  /** Linked plan slug extracted from the transcript */
+  slug?: string;
   /** Whether this session was explicitly renamed via the /rename command */
   is_renamed?: boolean;
   relevance?: number;
@@ -93,4 +95,13 @@ export interface SearchFilters {
   hasToolCalls?: boolean;
   hasErrors?: boolean;
   hasFileChanges?: boolean;
+}
+
+export interface RunningSessionInfo {
+  session_id: string;
+  pid: number;
+  cpu_percent: number;
+  memory_rss_kb: number;
+  uptime_seconds: number;
+  command: string;
 }

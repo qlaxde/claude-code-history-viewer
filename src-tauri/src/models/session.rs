@@ -60,6 +60,9 @@ pub struct ClaudeSession {
     pub has_tool_use: bool,
     pub has_errors: bool,
     pub summary: Option<String>,
+    /// Linked plan slug extracted from the transcript
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
     /// Whether this session was explicitly renamed via the /rename command
     #[serde(default)]
     pub is_renamed: bool,
@@ -98,6 +101,7 @@ mod tests {
             has_tool_use: true,
             has_errors: false,
             summary: Some("Test conversation".to_string()),
+            slug: None,
             is_renamed: false,
             provider: None,
             storage_type: None,

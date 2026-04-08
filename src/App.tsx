@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "./store/useAppStore";
 import { useAnalytics } from "./hooks/useAnalytics";
@@ -17,6 +17,7 @@ import {
   type GroupingMode,
 } from "./types";
 import { getProviderLabel, normalizeProviderIds } from "./utils/providers";
+import { toast } from "sonner";
 
 import "./App.css";
 
@@ -65,6 +66,12 @@ function App() {
     isNavigatorOpen,
     toggleNavigator,
     activeProviders,
+    loadRunningSessions,
+    autoArchiveExpiring,
+    runtime,
+    userMetadata,
+    isMetadataLoaded,
+    loadPlans,
   } = useAppStore();
 
   const {
@@ -243,6 +250,8 @@ function App() {
           await analyticsActions.switchToAnalytics();
         } else if (activeView === "settings") {
           analyticsActions.switchToSettings();
+        } else if (activeView === "plans") {
+          await analyticsActions.switchToPlans();
         } else {
           analyticsActions.switchToMessages();
         }
@@ -261,6 +270,65 @@ function App() {
     },
     [computed.isBoardView]
   );
+
+  useEffect(() => {
+    void loadPlans();
+  }, [loadPlans]);
+
+  useEffect(() => {
+    void loadRunningSessions();
+    const interval = window.setInterval(() => {
+      void loadRunningSessions();
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [loadRunningSessions]);
+
+  const autoArchiveRunKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isMetadataLoaded) {
+      return;
+    }
+
+    const enabled = userMetadata.settings.autoArchiveExpiringSessions ?? true;
+    const threshold = userMetadata.settings.autoArchiveThresholdDays ?? 5;
+    if (!enabled) {
+      autoArchiveRunKeyRef.current = null;
+      return;
+    }
+
+    const runKey = `${enabled}:${threshold}`;
+    if (autoArchiveRunKeyRef.current !== runKey) {
+      autoArchiveRunKeyRef.current = runKey;
+      void autoArchiveExpiring(threshold).catch((error) => {
+        console.error("Auto archive failed:", error);
+      });
+    }
+
+    const interval = window.setInterval(() => {
+      void autoArchiveExpiring(threshold).catch((error) => {
+        console.error("Scheduled auto archive failed:", error);
+      });
+    }, 6 * 60 * 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, [autoArchiveExpiring, isMetadataLoaded, userMetadata.settings.autoArchiveExpiringSessions, userMetadata.settings.autoArchiveThresholdDays]);
+
+  const lastAutoArchiveToastRef = useRef(runtime.lastAutoArchiveResult);
+  useEffect(() => {
+    const result = runtime.lastAutoArchiveResult;
+    const count = result?.archivedCount ?? 0;
+    if (result && count > 0 && result !== lastAutoArchiveToastRef.current) {
+      lastAutoArchiveToastRef.current = result;
+      toast.success(
+        count === 1
+          ? "1 session archived before expiry"
+          : `${count} sessions archived before expiry`
+      );
+      return;
+    }
+
+    lastAutoArchiveToastRef.current = result;
+  }, [runtime.lastAutoArchiveResult]);
 
   return (
     <AppLayout

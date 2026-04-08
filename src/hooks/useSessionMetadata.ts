@@ -81,6 +81,10 @@ export const useSessionMetadata = (sessionId: string) => {
   );
   const notes = sessionMetadata?.notes;
   const hasClaudeCodeName = sessionMetadata?.hasClaudeCodeName ?? false;
+  const status = sessionMetadata?.status;
+  const priority = sessionMetadata?.priority;
+  const planSlug = sessionMetadata?.planSlug;
+  const lastClosedAt = sessionMetadata?.lastClosedAt;
 
   /**
    * Set or clear custom session name
@@ -178,6 +182,10 @@ export const useSessionMetadata = (sessionId: string) => {
     tags,
     notes,
     hasClaudeCodeName,
+    status,
+    priority,
+    planSlug,
+    lastClosedAt,
     isMetadataLoaded,
 
     // Actions

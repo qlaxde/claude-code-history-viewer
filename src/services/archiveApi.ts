@@ -14,6 +14,7 @@ import type {
   ExpiringSession,
   ExportResult,
   ClaudeMessage,
+  AutoArchiveResult,
 } from '@/types';
 
 export const archiveApi = {
@@ -28,6 +29,7 @@ export const archiveApi = {
     sourceProvider: string;
     sourceProjectPath: string;
     sourceProjectName: string;
+    planFilePaths?: string[];
     includeSubagents?: boolean;
   }) =>
     api<ArchiveEntry>('create_archive', {
@@ -37,6 +39,7 @@ export const archiveApi = {
       sourceProvider: params.sourceProvider,
       sourceProjectPath: params.sourceProjectPath,
       sourceProjectName: params.sourceProjectName,
+      planFilePaths: params.planFilePaths,
       includeSubagents: params.includeSubagents ?? true,
     }),
 
@@ -65,4 +68,7 @@ export const archiveApi = {
 
   exportSession: (sessionFilePath: string, format: 'json') =>
     api<ExportResult>('export_session', { sessionFilePath, format }),
+
+  autoArchiveExpiring: (thresholdDays: number) =>
+    api<AutoArchiveResult>('auto_archive_expiring', { thresholdDays }),
 };

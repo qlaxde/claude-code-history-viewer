@@ -29,6 +29,7 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
 import { WslSection } from "./sections/WslSection";
+import { WorkflowSection } from "./sections/WorkflowSection";
 
 export type ActivePanel = "editor" | "diagnostics";
 
@@ -324,6 +325,10 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
                 isExpanded={isWslExpanded}
                 onToggle={(open) => setIsWslExpanded(open)}
               />
+            </Card>
+
+            <Card className="shrink-0">
+              <WorkflowSection />
             </Card>
 
             {/* Claude Code Settings */}

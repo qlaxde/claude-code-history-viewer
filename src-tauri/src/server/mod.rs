@@ -162,6 +162,11 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         .route("/stop_file_watcher", post(h::stop_file_watcher))
         // Multi-provider commands
         .route("/detect_providers", post(h::detect_providers))
+        .route("/scan_plans", post(h::scan_plans))
+        .route("/load_plan", post(h::load_plan))
+        .route("/get_running_sessions", post(h::get_running_sessions))
+        .route("/kill_session", post(h::kill_session))
+        .route("/install_hooks", post(h::install_hooks))
         .route("/scan_all_projects", post(h::scan_all_projects))
         .route("/load_provider_sessions", post(h::load_provider_sessions))
         .route("/load_provider_messages", post(h::load_provider_messages))
@@ -180,6 +185,7 @@ pub fn build_router(state: Arc<AppState>, host: &str, port: u16, dist_dir: Optio
         .route("/get_archive_disk_usage", post(h::get_archive_disk_usage))
         .route("/get_expiring_sessions", post(h::get_expiring_sessions))
         .route("/export_session", post(h::export_session))
+        .route("/auto_archive_expiring", post(h::auto_archive_expiring))
         // Auth middleware — checks Bearer header or ?token= query param
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

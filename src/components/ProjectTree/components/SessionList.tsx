@@ -59,10 +59,11 @@ export const SessionList: React.FC<SessionListProps> = ({
   onSessionHover,
   formatTimeAgo,
   variant = "default",
+  statusFilter = "all",
 }) => {
   const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
-  const { sessionSortOrder, setSessionSortOrder, getSessionDisplayName } = useAppStore();
+  const { sessionSortOrder, setSessionSortOrder, getSessionDisplayName, userMetadata } = useAppStore();
 
   const isWorktree = variant === "worktree";
   const isMain = variant === "main";
@@ -85,6 +86,12 @@ export const SessionList: React.FC<SessionListProps> = ({
       return sessionSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
 
+    if (statusFilter !== "all") {
+      result = result.filter(
+        (session) => userMetadata.sessions[session.session_id]?.status === statusFilter
+      );
+    }
+
     // Filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -99,7 +106,7 @@ export const SessionList: React.FC<SessionListProps> = ({
     }
 
     return result;
-  }, [sessions, sessionSortOrder, searchQuery, getSessionDisplayName]);
+  }, [sessions, sessionSortOrder, searchQuery, getSessionDisplayName, statusFilter, userMetadata.sessions]);
 
   // Show controls only if we have enough sessions
   const showControls = sessions.length >= 3;

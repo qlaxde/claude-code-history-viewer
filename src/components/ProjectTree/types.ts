@@ -1,6 +1,5 @@
 // src/components/ProjectTree/types.ts
-import type { ClaudeProject, ClaudeSession } from "../../types";
-import type { GroupingMode } from "../../types/metadata.types";
+import type { ClaudeProject, ClaudeSession, GroupingMode } from "../../types";
 import type { WorktreeGroup, DirectoryGroup } from "../../utils/worktreeUtils";
 
 export interface ContextMenuState {
@@ -40,7 +39,7 @@ export interface ProjectTreeProps {
   onClose?: () => void;
 }
 
-export type GroupingStrategy = "none" | "directory" | "worktree";
+export type GroupingStrategy = "none" | "directory" | "worktree" | "recent";
 
 export interface ProjectItemProps {
   project: ClaudeProject;
@@ -62,6 +61,7 @@ export interface SessionListProps {
   onSessionHover?: (session: ClaudeSession) => void;
   formatTimeAgo: (date: string) => string;
   variant?: "default" | "main" | "worktree";
+  statusFilter?: "all" | import("@/types").SessionStatus;
 }
 
 export interface GroupHeaderProps {

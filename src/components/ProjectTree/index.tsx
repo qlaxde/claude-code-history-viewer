@@ -9,6 +9,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   RotateCcw,
+  Clock3,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -19,8 +20,9 @@ import { getLocale } from "../../utils/time";
 import { ProjectContextMenu } from "../ProjectContextMenu";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
+import { RecentSessionList } from "./components/RecentSessionList";
 import type { ProjectTreeProps } from "./types";
-import type { ProviderId, ClaudeSession } from "../../types";
+import type { ProviderId, ClaudeSession, SessionStatus } from "../../types";
 import { useAppStore } from "../../store/useAppStore";
 import {
   buildTreeItemAnnouncement,
@@ -66,6 +68,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   onClose,
 }) => {
   const { t, i18n } = useTranslation();
+  const [statusFilter, setStatusFilter] = useState<"all" | SessionStatus>("all");
   const keyboardHelpId = `${asideId}-keyboard-help`;
   const activeProviders = useAppStore((state) => state.activeProviders);
   const detectedProviders = useAppStore((state) => state.providers);
@@ -738,6 +741,20 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                   >
                     <GitBranch className="w-3 h-3" />
                   </button>
+                  {/* Recent Grouping */}
+                  <button
+                    onClick={() => onGroupingModeChange("recent")}
+                    className={cn(
+                      "p-1 rounded transition-all duration-200",
+                      groupingMode === "recent"
+                        ? "bg-violet-500/20 text-violet-400"
+                        : "text-muted-foreground hover:text-violet-400 hover:bg-violet-500/10"
+                    )}
+                    title={t("project.groupingRecent", "Recent conversations")}
+                    aria-label={t("project.groupingRecent", "Recent conversations")}
+                  >
+                    <Clock3 className="w-3 h-3" />
+                  </button>
                 </div>
               )}
               <span className="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-full">
@@ -798,6 +815,18 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
               <RotateCcw className="w-3 h-3" />
               <span>{t("project.resetProviderFilters", "Reset")}</span>
             </button>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as "all" | SessionStatus)}
+              className="h-7 rounded-md border border-border/60 bg-muted/20 px-2 text-2xs text-muted-foreground"
+              aria-label={t("session.statusFilter", "Filter by status")}
+            >
+              <option value="all">{t("session.statusFilterAll", "All statuses")}</option>
+              <option value="active">{t("session.status.active", "Active")}</option>
+              <option value="paused">{t("session.status.paused", "Paused")}</option>
+              <option value="completed">{t("session.status.completed", "Completed")}</option>
+              <option value="abandoned">{t("session.status.abandoned", "Abandoned")}</option>
+            </select>
           </div>
         </div>
 
@@ -821,6 +850,39 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 <Folder className="w-8 h-8 text-muted-foreground/40" />
               </div>
               <p className="text-sm text-muted-foreground">{t("project.notFound")}</p>
+            </div>
+          ) : groupingMode === "recent" ? (
+            <div className="space-y-0.5 animate-stagger">
+              <button
+                onClick={handleGlobalStatsClick}
+                className={cn(
+                  "sidebar-item w-full flex items-center gap-3 mx-2 group",
+                  "text-left transition-all duration-300",
+                  isViewingGlobalStats && "active"
+                )}
+                style={{ width: "calc(100% - 16px)" }}
+              >
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-accent/10 text-accent">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-sidebar-foreground">
+                    {t("project.globalStats")}
+                  </div>
+                  <div className="text-2xs text-muted-foreground">
+                    {t("project.globalStatsDescription")}
+                  </div>
+                </div>
+              </button>
+              <div className="my-2 mx-4 h-px bg-sidebar-border" />
+              <RecentSessionList
+                projects={filteredProjects}
+                selectedSession={selectedSession}
+                onSessionSelect={handleSessionSelect}
+                onSessionHover={onSessionHover}
+                formatTimeAgo={formatTimeAgo}
+                statusFilter={statusFilter}
+              />
             </div>
           ) : (
             <div
@@ -899,6 +961,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
                 onSessionSelect={handleSessionSelect}
                 onSessionHover={onSessionHover}
                 formatTimeAgo={formatTimeAgo}
+                statusFilter={statusFilter}
               />
             </div>
           )}

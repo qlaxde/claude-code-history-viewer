@@ -194,6 +194,7 @@ pub fn load_sessions(
             has_errors: false,
             summary: meta.summary,
             is_renamed: false,
+            slug: None,
             provider: Some("gemini".to_string()),
             storage_type: Some("json".to_string()),
         });
