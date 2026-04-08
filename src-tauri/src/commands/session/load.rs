@@ -56,7 +56,7 @@ struct SessionMetadataCache {
     entries: HashMap<String, CachedSessionMetadata>,
 }
 
-const CACHE_VERSION: u32 = 9;
+const CACHE_VERSION: u32 = 10;
 
 /// Get the cache file path for a project
 fn get_cache_path(project_path: &str) -> PathBuf {
@@ -197,6 +197,7 @@ struct QuickLineClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    slug: Option<String>,
 }
 
 /// Fast session metadata extraction result
@@ -507,6 +508,11 @@ fn extract_session_metadata_internal(
             // Update last timestamp
             if let Some(ts) = classifier.timestamp {
                 last_timestamp = Some(ts);
+            }
+
+            // Slug can appear well after the initial metadata phase (e.g. after a plan tool step)
+            if slug.is_none() {
+                slug = classifier.slug;
             }
 
             // Quick tool_use check via string search (faster than full parse)
@@ -2432,6 +2438,48 @@ mod tests {
         assert_eq!(result[0].summary, Some("LateRename".to_string()));
         // System message should not be counted (60 user + 60 assistant = 120)
         assert_eq!(result[0].message_count, 120);
+    }
+
+    #[tokio::test]
+    async fn test_phase2_slug_beyond_metadata_lines() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let mut content = String::new();
+        for i in 1..=60 {
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_user_message(
+                    &format!("uuid-u{i}"),
+                    "session-1",
+                    &format!("User message {i}")
+                )
+            ));
+            content.push_str(&format!(
+                "{}\n",
+                create_sample_assistant_message(
+                    &format!("uuid-a{i}"),
+                    "session-1",
+                    &format!("Assistant reply {i}")
+                )
+            ));
+        }
+
+        content.push_str(
+            "{\"type\":\"assistant\",\"sessionId\":\"session-1\",\"timestamp\":\"2025-01-01T00:00:00Z\",\"slug\":\"federated-booping-journal\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"late slug\"}]}}\n",
+        );
+
+        let file_path = temp_dir.path().join("test.jsonl");
+        std::fs::write(&file_path, content).unwrap();
+
+        let result = load_project_sessions(temp_dir.path().to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(
+            result[0].slug,
+            Some("federated-booping-journal".to_string())
+        );
+        assert_eq!(result[0].message_count, 121);
     }
 
     #[tokio::test]
